@@ -1,6 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?><projectDescription>
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
 	<name>ultrasonic-oxygen-sensor-fw</name>
-	<comment/>
+	<comment />
 	<projects>
 	</projects>
 	<buildSpec>
@@ -129,5 +130,21 @@
 			<type>1</type>
 			<location>PARENT-2-PROJECT_LOC/Core/Src/system_stm32f0xx.c</location>
 		</link>
-  </linkedResources>
+  <link>
+      <name>Drivers/STM32F0xx_HAL_Driver/stm32f0xx_hal_adc.c</name>
+      <type>1</type>
+      <location>PARENT-2-PROJECT_LOC/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc.c</location>
+    </link><link>
+      <name>Drivers/STM32F0xx_HAL_Driver/stm32f0xx_hal_adc_ex.c</name>
+      <type>1</type>
+      <location>PARENT-2-PROJECT_LOC/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_adc_ex.c</location>
+    </link><link>
+      <name>Drivers/STM32F0xx_HAL_Driver/stm32f0xx_hal_uart.c</name>
+      <type>1</type>
+      <location>PARENT-2-PROJECT_LOC/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_uart.c</location>
+    </link><link>
+      <name>Drivers/STM32F0xx_HAL_Driver/stm32f0xx_hal_uart_ex.c</name>
+      <type>1</type>
+      <location>PARENT-2-PROJECT_LOC/Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_uart_ex.c</location>
+    </link></linkedResources>
 </projectDescription>
