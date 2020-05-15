@@ -49,13 +49,12 @@ extern "C" {
 
 /* USER CODE END EM */
 
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-//extern ADC_HandleTypeDef hadc;
+extern ADC_HandleTypeDef hadc;
+
 void HAL_ADC_SetChannelZeroActive(void);
 void HAL_ADC_SetChannelOneActive(void);
 void HAL_ADC_SetChannelFourActive(void);
@@ -66,6 +65,7 @@ void HAL_TIM_RunPWMChannelTwo(void);
 
 void HAL_GPIO_ReconfigurePinAsInput(uint32_t GPIO_Pin);
 void HAL_GPIO_ReconfigurePinAsPWM(uint32_t GPIO_Pin);
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

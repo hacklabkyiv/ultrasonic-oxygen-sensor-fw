@@ -29,9 +29,11 @@
 #ifndef INC_SENSOR_H_
 #define INC_SENSOR_H_
 
-#define ADC_DATA_WINDOW_SIZE 800
+#define ADC_DATA_WINDOW_SIZE 500
 #define ADC_CONVERTION_TIME 300
 #define DELAY_BETWEEN_MEASUREMENTS 200
+
+#define NTC_ADC_CHANNEL ADC_CHANNEL_4
 
 /* Thermistor data MF52A1 (https://arduino.ua/files/MF52A1.pdf)*/
 #define B_25_50 3950.0f

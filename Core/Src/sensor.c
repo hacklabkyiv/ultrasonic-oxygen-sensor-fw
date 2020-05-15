@@ -37,13 +37,13 @@ static volatile uint32_t pwmCounter = 0;
 const int num_of_pulses = 9;
 const int measurement_shift = 1;
 
-const int sample_start = 765;
-const int sample_end = 790;
+const int sample_start = 1;
+const int sample_end = 499;
 
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
     pwmCounter++;
     if (pwmCounter == measurement_shift) {
-      //HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
+      HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
     }
     else if (pwmCounter > num_of_pulses) {
       HAL_TIM_HaltAllPWMs();
@@ -55,12 +55,16 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
 
 int getTemperature(uint16_t adc_value, float beta, float t_ref)
 {
+  return 0;
+}
+/*int getTemperature(uint16_t adc_value, float beta, float t_ref)
+{
   float T_K = (1.00 / ((1 / t_ref)
           + (1 / beta) * (log(4096.0 / (float) (4096.0 - adc_value) - 1.00))));
   return T_K;
 }
 
-
+/*
 float getPhase(uint16_t data[], size_t length)
 {
   const int SAMPLE_FREQ = 1000000;
@@ -80,13 +84,25 @@ float getPhase(uint16_t data[], size_t length)
   float phi = atan2(ai / a, aq / a);
   float max_time = fmod((2 * M_PI + M_PI_2 - phi) / WA, WAVE_PERIOD);
   float max_sample = max_time / SAMPLING_INTERVAL;
+//  printf("Params:\r\n");
+//  printf("%d %.8f %.8f %.8f\r\n", length, ai, aq, WA);
+//  printf("Peak: %.8f\r\n", max_time);
+//  printf("Amplitude: %.8f\r\n", max_sample);
+  return max_time;
+} */
+
+float getPhase(uint16_t data[], size_t length)
+{
+  float max_sample = 0;
+  float max_time = 0;
+  float ai, aq, WA;
   printf("Params:\r\n");
   printf("%d %.8f %.8f %.8f\r\n", length, ai, aq, WA);
   printf("Peak: %.8f\r\n", max_time);
   printf("Amplitude: %.8f\r\n", max_sample);
-  return max_time;
+  return 0;
 }
-
+#if 0
 void SENSOR_Init()
 {
   printf("Sensor initialization...\r\n");
@@ -128,17 +144,17 @@ void SENSOR_Init()
     uint16_t adc_temp = 0;
     uint16_t temperature = 0;
     HAL_ADC_SetChannelFourActive();
-    //HAL_ADC_Start(&hadc);
+    HAL_ADC_Start(&hadc);
     HAL_Delay(ADC_CONVERTION_TIME);
-    //adc_temp = HAL_ADC_GetValue(&hadc);
-    //HAL_ADC_Stop(&hadc);
+    adc_temp = HAL_ADC_GetValue(&hadc);
+    HAL_ADC_Stop(&hadc);
     temperature = getTemperature(adc_temp, B_25_50, T_ref);
     printf("Temperature: %u\r\n", temperature);
-    /* Calculations */
-    diff = t_0 - t_1;
-    float flow;
-    flow = 0.0016f * diff / (t_0 * t_1);
 #if 0
+    /* Calculations */
+	diff = t_0 - t_1;
+	float flow;
+	flow = 0.0016f * diff / (t_0 * t_1);
     printf("-------- Calculations ------------\r\n");
     printf("Time Forward: %.8f\r\n", t_0);
     printf("Time Back: %.8f\r\n", t_1);
@@ -149,4 +165,62 @@ void SENSOR_Init()
   }
 }
 
+#endif
 
+void HAL_ADC_ActivateChannel(uint32_t channel)
+{
+  ADC_ChannelConfTypeDef sConfig = {0};
+  sConfig.Channel = channel;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+void HAL_ADC_DeactivateChannel(uint32_t channel)
+{
+  ADC_ChannelConfTypeDef sConfig = {0};
+  sConfig.Channel = channel;
+  sConfig.Rank = ADC_RANK_NONE;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+void SENSOR_Init()
+{
+  while (1)
+  {
+#if 1
+    // Channel 0 measurements
+    HAL_ADC_DeactivateChannel(ADC_CHANNEL_1);
+    HAL_ADC_DeactivateChannel(NTC_ADC_CHANNEL);
+    HAL_ADC_ActivateChannel(ADC_CHANNEL_0);
+    printf("Sensor initialization...\r\n");
+    HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
+    HAL_Delay(ADC_CONVERTION_TIME);
+    for (int i = 0; i < ADC_DATA_WINDOW_SIZE; i++)
+         printf("%u,%u\r\n", i, adcData[i]);
+    HAL_ADC_Stop_DMA(&hadc);
+    HAL_Delay(1000);
+#endif
+
+#if 1
+    // Temperature measurements
+    HAL_ADC_DeactivateChannel(ADC_CHANNEL_0);
+    HAL_ADC_DeactivateChannel(ADC_CHANNEL_1);
+    HAL_ADC_ActivateChannel(NTC_ADC_CHANNEL);
+    uint16_t adc_value = 0;
+    printf("Sensor initialization...\r\n");
+    HAL_ADC_Start(&hadc);
+    HAL_Delay(ADC_CONVERTION_TIME);
+    adc_value = HAL_ADC_GetValue(&hadc);
+    HAL_ADC_Stop(&hadc);
+    printf("Temperature: %u\r\n", adc_value);
+    HAL_Delay(1000);
+#endif
+  }
+}
