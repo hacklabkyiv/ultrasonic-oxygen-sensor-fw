@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "sensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,6 +42,7 @@
 
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc;
+DMA_HandleTypeDef hdma_adc;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -56,6 +57,7 @@ UART_HandleTypeDef huart1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM1_Init(void);
@@ -97,12 +99,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_ADC_Init();
   MX_I2C1_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  printf("Sensor init....\r\n");
+  SENSOR_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -191,11 +195,11 @@ static void MX_ADC_Init(void)
   hadc.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc.Init.LowPowerAutoWait = DISABLE;
   hadc.Init.LowPowerAutoPowerOff = DISABLE;
-  hadc.Init.ContinuousConvMode = DISABLE;
+  hadc.Init.ContinuousConvMode = ENABLE;
   hadc.Init.DiscontinuousConvMode = DISABLE;
   hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc.Init.DMAContinuousRequests = DISABLE;
+  hadc.Init.DMAContinuousRequests = ENABLE;
   hadc.Init.Overrun = ADC_OVR_DATA_PRESERVED;
   if (HAL_ADC_Init(&hadc) != HAL_OK)
   {
@@ -297,9 +301,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 12-1;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 0;
+  htim1.Init.Period = 100-1;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -371,7 +375,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 38400;
+  huart1.Init.BaudRate = 115200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -387,6 +391,22 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/** 
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void) 
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
@@ -406,6 +426,126 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/* Retarget printf to UART (std library and toolchain dependent) */
+#if defined(__GNUC__)
+int _write(int fd, char * ptr, int len)
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *) ptr, len, HAL_MAX_DELAY);
+  return len;
+}
+#elif defined (__ICCARM__)
+#include "LowLevelIOInterface.h"
+size_t __write(int handle, const unsigned char * buffer, size_t size)
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *) buffer, size, HAL_MAX_DELAY);
+  return size;
+}
+#elif defined (__CC_ARM)
+int fputc(int ch, FILE *f)
+{
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
+}
+#endif
+
+/* Misc functions, used for switching active channels, since we need
+ * switch receiver and transmitter functionality for ultrasonic sensor.
+ */
+
+void HAL_GPIO_ReconfigurePinAsInput(uint32_t GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  HAL_GPIO_DeInit(GPIOA, GPIO_Pin);
+  GPIO_InitStruct.Pin = GPIO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+void HAL_GPIO_ReconfigurePinAsPWM(uint32_t GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  HAL_GPIO_DeInit(GPIOA, GPIO_Pin);
+  GPIO_InitStruct.Pin = GPIO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+void HAL_ADC_SetChannelZeroActive(void)
+{
+  ADC_ChannelConfTypeDef sConfig = { 0 };
+  /* Configure Regular Channel */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  //__HAL_RCC_ADC1_CLK_DISABLE();
+  //__HAL_RCC_ADC1_CLK_ENABLE();
+}
+
+void HAL_ADC_SetChannelOneActive(void)
+{
+  ADC_ChannelConfTypeDef sConfig = { 0 };
+  //
+  /* Configure Regular Channel */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  //__HAL_RCC_ADC1_CLK_DISABLE();
+  //__HAL_RCC_ADC1_CLK_ENABLE();
+
+}
+void HAL_ADC_SetChannelFourActive(void)
+{
+  ADC_ChannelConfTypeDef sConfig = { 0 };
+  /* Configure Regular Channel */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  /* We can use huge sampling time here, since this
+   * is single measurement of temperature
+   */
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  //__HAL_RCC_ADC1_CLK_DISABLE();
+  //__HAL_RCC_ADC1_CLK_ENABLE();
+
+}
+
+void HAL_TIM_HaltAllPWMs()
+{
+  HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_2);
+  __HAL_RCC_TIM1_CLK_DISABLE();
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+}
+void HAL_TIM_RunPWMChannelOne()
+{
+  __HAL_RCC_TIM1_CLK_ENABLE();
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, TIM1->ARR / 2);
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+  HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
+}
+
+void HAL_TIM_RunPWMChannelTwo()
+{
+  __HAL_RCC_TIM1_CLK_ENABLE();
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, TIM1->ARR / 2);
+  __HAL_TIM_SET_COUNTER(&htim1, 0);
+  HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_2);
+}
 
 /* USER CODE END 4 */
 
