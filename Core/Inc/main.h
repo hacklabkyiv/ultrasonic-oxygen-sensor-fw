@@ -57,7 +57,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 extern ADC_HandleTypeDef hadc;
 extern TIM_HandleTypeDef htim1;
-
+extern UART_HandleTypeDef huart1;
 void HAL_ADC_SetChannelZeroActive(void);
 void HAL_ADC_SetChannelOneActive(void);
 void HAL_ADC_SetChannelFourActive(void);

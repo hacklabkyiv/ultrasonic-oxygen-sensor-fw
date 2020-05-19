@@ -44,8 +44,6 @@
 ADC_HandleTypeDef hadc;
 DMA_HandleTypeDef hdma_adc;
 
-I2C_HandleTypeDef hi2c1;
-
 TIM_HandleTypeDef htim1;
 
 UART_HandleTypeDef huart1;
@@ -59,7 +57,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_ADC_Init(void);
-static void MX_I2C1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
@@ -101,7 +98,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC_Init();
-  MX_I2C1_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
@@ -132,10 +128,8 @@ void SystemClock_Config(void)
 
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
@@ -156,9 +150,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -221,52 +214,6 @@ static void MX_ADC_Init(void)
   /* USER CODE BEGIN ADC_Init 2 */
 
   /* USER CODE END ADC_Init 2 */
-
-}
-
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_I2C1_Init(void)
-{
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
-  hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x2000090E;
-  hi2c1.Init.OwnAddress1 = 0;
-  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-  hi2c1.Init.OwnAddress2 = 0;
-  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Analogue filter 
-  */
-  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure Digital filter 
-  */
-  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
 
 }
 
@@ -411,112 +358,13 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
 }
 
 /* USER CODE BEGIN 4 */
 /* Retarget printf to UART (std library and toolchain dependent) */
 
-#if defined(__GNUC__)
-int _write(int fd, char * ptr, int len)
-{
-  HAL_UART_Transmit(&huart1, (uint8_t *) ptr, len, HAL_MAX_DELAY);
-  return len;
-}
-#elif defined (__ICCARM__)
-#include "LowLevelIOInterface.h"
-size_t __write(int handle, const unsigned char * buffer, size_t size)
-{
-  HAL_UART_Transmit(&huart1, (uint8_t *) buffer, size, HAL_MAX_DELAY);
-  return size;
-}
-#elif defined (__CC_ARM)
-int fputc(int ch, FILE *f)
-{
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    return ch;
-}
-#endif
 
-/* Misc functions, used for switching active channels, since we need
- * switch receiver and transmitter functionality for ultrasonic sensor.
- */
-
-
-
-void HAL_ADC_SetChannelZeroActive(void)
-{
-  ADC_ChannelConfTypeDef sConfig = { 0 };
-  /* Configure Regular Channel */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  //__HAL_RCC_ADC1_CLK_DISABLE();
-  //__HAL_RCC_ADC1_CLK_ENABLE();
-}
-
-void HAL_ADC_SetChannelOneActive(void)
-{
-  ADC_ChannelConfTypeDef sConfig = { 0 };
-  //
-  /* Configure Regular Channel */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  //__HAL_RCC_ADC1_CLK_DISABLE();
-  //__HAL_RCC_ADC1_CLK_ENABLE();
-
-}
-void HAL_ADC_SetChannelFourActive(void)
-{
-  ADC_ChannelConfTypeDef sConfig = { 0 };
-  /* Configure Regular Channel */
-  sConfig.Channel = ADC_CHANNEL_4;
-  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  /* We can use huge sampling time here, since this
-   * is single measurement of temperature
-   */
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  //__HAL_RCC_ADC1_CLK_DISABLE();
-  //__HAL_RCC_ADC1_CLK_ENABLE();
-
-}
-
-void HAL_TIM_HaltAllPWMs()
-{
-  HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Stop_IT(&htim1, TIM_CHANNEL_2);
-  __HAL_RCC_TIM1_CLK_DISABLE();
-  __HAL_TIM_SET_COUNTER(&htim1, 0);
-}
-void HAL_TIM_RunPWMChannelOne()
-{
-  __HAL_RCC_TIM1_CLK_ENABLE();
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, TIM1->ARR / 2);
-  __HAL_TIM_SET_COUNTER(&htim1, 0);
-  HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
-}
-
-void HAL_TIM_RunPWMChannelTwo()
-{
-  __HAL_RCC_TIM1_CLK_ENABLE();
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, TIM1->ARR / 2);
-  __HAL_TIM_SET_COUNTER(&htim1, 0);
-  HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_2);
-}
 
 /* USER CODE END 4 */
 
