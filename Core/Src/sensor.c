@@ -34,24 +34,12 @@
 
 static uint16_t adcData[ADC_DATA_WINDOW_SIZE] = { 0 };
 static volatile uint32_t pwmCounter = 0;
-const int num_of_pulses = 9;
-const int measurement_shift = 1;
+const int num_of_pulses = 14;
+const int measurement_shift = 12;
 
 const int sample_start = 1;
 const int sample_end = 499;
 
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
-    pwmCounter++;
-    if (pwmCounter == measurement_shift) {
-      HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
-    }
-    else if (pwmCounter > num_of_pulses) {
-      HAL_TIM_HaltAllPWMs();
-      HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_9);
-      HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_8);
-      pwmCounter = 0;
-    }
-}
 
 int getTemperature(uint16_t adc_value, float beta, float t_ref)
 {
@@ -167,6 +155,30 @@ void SENSOR_Init()
 
 #endif
 
+void HAL_GPIO_ReconfigurePinAsInput(uint32_t GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  HAL_GPIO_DeInit(GPIOA, GPIO_Pin);
+  GPIO_InitStruct.Pin = GPIO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+void HAL_GPIO_ReconfigurePinAsPWM(uint32_t GPIO_Pin)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  HAL_GPIO_DeInit(GPIOA, GPIO_Pin);
+  GPIO_InitStruct.Pin = GPIO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF2_TIM1;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
 void HAL_ADC_ActivateChannel(uint32_t channel)
 {
   ADC_ChannelConfTypeDef sConfig = {0};
@@ -190,25 +202,75 @@ void HAL_ADC_DeactivateChannel(uint32_t channel)
     Error_Handler();
   }
 }
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+    pwmCounter++;
+    if (pwmCounter == measurement_shift) {
+      HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
+    }
+    else if (pwmCounter > num_of_pulses) {
+      HAL_TIM_HaltAllPWMs();
+      HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_9);
+      HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_8);
+      pwmCounter = 0;
+    }
+}
+
+#if 1
 void SENSOR_Init()
 {
+  HAL_Delay(500);
   while (1)
   {
+    printf("Sensor initialization\r\n");
 #if 1
     // Channel 0 measurements
+    // ADC settings
     HAL_ADC_DeactivateChannel(ADC_CHANNEL_1);
     HAL_ADC_DeactivateChannel(NTC_ADC_CHANNEL);
     HAL_ADC_ActivateChannel(ADC_CHANNEL_0);
-    printf("Sensor initialization...\r\n");
-    HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
+    // PWM Pins settings
+    HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_8);
+    HAL_GPIO_ReconfigurePinAsPWM(GPIO_PIN_9);
+    // Enable PWM
+    __HAL_RCC_TIM1_CLK_ENABLE();
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_2, TIM1->ARR / 2);
+    __HAL_TIM_SET_COUNTER(&htim1, 0);
+    HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_2);
+    HAL_Delay(100);
+    printf("Channel0-start\r\n");
     HAL_Delay(ADC_CONVERTION_TIME);
     for (int i = 0; i < ADC_DATA_WINDOW_SIZE; i++)
          printf("%u,%u\r\n", i, adcData[i]);
     HAL_ADC_Stop_DMA(&hadc);
+    printf("completed\r\n");
     HAL_Delay(1000);
 #endif
 
 #if 1
+    // Channel 1 measurements
+    // ADC settings
+    HAL_ADC_DeactivateChannel(ADC_CHANNEL_0);
+    HAL_ADC_DeactivateChannel(NTC_ADC_CHANNEL);
+    HAL_ADC_ActivateChannel(ADC_CHANNEL_1);
+    // PWM Pins settings
+    HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_9);
+    HAL_GPIO_ReconfigurePinAsPWM(GPIO_PIN_8);
+    // Enable PWM
+    __HAL_RCC_TIM1_CLK_ENABLE();
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, TIM1->ARR / 2);
+    __HAL_TIM_SET_COUNTER(&htim1, 0);
+    HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_1);
+    HAL_Delay(100);
+    printf("Channel1-start\r\n");
+    HAL_Delay(ADC_CONVERTION_TIME);
+    for (int i = 0; i < ADC_DATA_WINDOW_SIZE; i++)
+         printf("%u,%u\r\n", i, adcData[i]);
+    HAL_ADC_Stop_DMA(&hadc);
+    printf("completed\r\n");
+    HAL_Delay(1000);
+#endif
+#if 0
     // Temperature measurements
     HAL_ADC_DeactivateChannel(ADC_CHANNEL_0);
     HAL_ADC_DeactivateChannel(ADC_CHANNEL_1);
@@ -224,3 +286,4 @@ void SENSOR_Init()
 #endif
   }
 }
+#endif
