@@ -31,6 +31,8 @@
 #include "main.h"
 #include "sensor.h"
 
+float ai, aq, phi, a, max_time, max_sample;
+float flow = 0;
 static uint16_t adcData[ADC_DATA_WINDOW_SIZE] = { 0 };
 static volatile uint32_t pwmCounter = 0;
 const int num_of_pulses = 14;
@@ -46,23 +48,24 @@ int getTemperature(uint16_t adc_value, float beta, float t_ref)
 
 float getPhase(uint16_t data[], size_t length)
 {
+  length -= 1;
   const int SAMPLE_FREQ = 1000000;
   const int WAVE_FREQ = 40000;
   const float SAMPLING_INTERVAL = 1. / SAMPLE_FREQ;
   const float WAVE_PERIOD = 1. / WAVE_FREQ;
   const float WA = 2 * M_PI * WAVE_FREQ;
-  float ai = 0;
-  float aq = 0;
+  ai = 0;
+  aq = 0;
   for (int i = 0; i < length; ++i)
   {
     float arg = WA * i * SAMPLING_INTERVAL;
     ai += data[i] * cos(arg);
     aq += data[i] * sin(arg);
   }
-  float a = sqrt(ai * ai + aq * aq);
-  float phi = atan2(ai / a, aq / a);
-  float max_time = fmod((2 * M_PI + M_PI_2 - phi) / WA, WAVE_PERIOD);
-  //float max_sample = max_time / SAMPLING_INTERVAL;
+  a = sqrt(ai * ai + aq * aq);
+  phi = atan2(ai / a, aq / a);
+  max_time = fmod((2 * M_PI + M_PI_2 - phi) / WA, WAVE_PERIOD);
+  max_sample = max_time / SAMPLING_INTERVAL;
   //  //printf("Params:\r\n");
   //  //printf("%d %.8f %.8f %.8f\r\n", length, ai, aq, WA);
   //  //printf("Peak: %.8f\r\n", max_time);
@@ -141,11 +144,20 @@ void HAL_TIM_RunPWMChannelTwo()
   HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_2);
 }
 
+uint8_t direction = 0;
+const int forward_delay = 10;
+const int backward_delay = 10000;
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
   pwmCounter++;
   if (pwmCounter == measurement_shift)
   {
+    if (direction)
+      for (int i = 0; i < forward_delay; i++)
+        asm("NOP");
+    else
+      for (int i = 0; i < backward_delay; i++)
+        asm("NOP");
     HAL_ADC_Start_DMA(&hadc, (uint32_t *) adcData, ADC_DATA_WINDOW_SIZE);
     HAL_TIM_HaltAllPWMs();
     HAL_GPIO_ReconfigurePinAsInput(GPIO_PIN_9);
@@ -173,6 +185,7 @@ void SENSOR_Init()
     cycle++;
     /* Channel 0 measurements */
     /* ADC settings */
+    direction = 0;
     HAL_ADC_DeactivateChannel(ADC_CHANNEL_1);
     HAL_ADC_DeactivateChannel(NTC_ADC_CHANNEL);
     HAL_ADC_ActivateChannel(ADC_CHANNEL_0);
@@ -185,12 +198,11 @@ void SENSOR_Init()
     __HAL_TIM_SET_COUNTER(&htim1, 0);
     HAL_TIM_PWM_Start_IT(&htim1, TIM_CHANNEL_2);;
     HAL_Delay(ADC_CONVERTION_TIME);
-    //for (int i = 0; i < ADC_DATA_WINDOW_SIZE; i++)
-    //  print_value(adcData[i]);
     HAL_ADC_Stop_DMA(&hadc);
     t_0 = getPhase(adcData, ADC_DATA_WINDOW_SIZE);
     /* Channel 1 measurements */
     /* ADC settings */
+    direction = 1;
     HAL_ADC_DeactivateChannel(ADC_CHANNEL_0);
     HAL_ADC_DeactivateChannel(NTC_ADC_CHANNEL);
     HAL_ADC_ActivateChannel(ADC_CHANNEL_1);
@@ -218,7 +230,7 @@ void SENSOR_Init()
     HAL_ADC_Stop(&hadc);
     temperature = getTemperature(adc_value, B_25_50, T_ref);
     /* Calculations */
-    float diff, flow;
+    float diff;
     diff = t_0 - t_1;
     flow = 0.0016f * diff / (t_0 * t_1);
     //print_value(flow);
